@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Chamada Facial</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script defer src="main.js"></script>
+  <style>
+    video, canvas, #imageUpload { display: block; margin: 10px auto; }
+    .student { padding: 5px; margin: 2px; display: inline-block; border-radius: 5px; border: 1px solid #ccc; cursor: pointer; }
+    .present { background-color: #c2f0c2; border-color: green; font-weight: bold; }
+    .absent { background-color: #f5c2c2; border-color: red; }
+    .note { background-color: #fff3cd; border-color: orange; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">Chamada por Reconhecimento Facial</h2>
+  <button onclick="startLiveMode()">📷 Câmera Ao Vivo</button>
+  <button onclick="startImageMode()">🖼️ Enviar Imagem</button>
+  <video id="video" width="720" height="560" autoplay muted style="display:none;"></video>
+  <input type="file" id="imageUpload" accept="image/*" style="display:none;">
+  <button id="capture" style="display:none;">Fazer Chamada</button>
+  <canvas id="canvas" width="720" height="560"></canvas>
+  <div id="output" style="text-align:center;">Carregando modelos...</div>
+  <div id="student-list" style="text-align:center;"></div>
+  <textarea id="copyArea" rows="10" style="width:90%;display:block;margin:10px auto;"></textarea>
+</body>
+</html>
