@@ -1,117 +1,117 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>Chamada por Reconhecimento Facial</title>
+  <meta charset="UTF-8">
+  <title>Chamada Facial</title>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; }
     video, canvas, #imageUpload { display: block; margin: 10px auto; }
-    #output { text-align: center; }
-    button { display: block; margin: 10px auto; padding: 10px 20px; }
-    .student {
-      padding: 5px; margin: 2px; display: inline-block;
-      border-radius: 5px; border: 1px solid #ccc; cursor: pointer;
-    }
+    button { display: block; margin: 10px auto; padding: 10px; }
+    .student { padding: 5px; margin: 2px; display: inline-block; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; }
     .present { background-color: #c2f0c2; border-color: green; font-weight: bold; }
     .absent { background-color: #f5c2c2; border-color: red; }
     .note { background-color: #fff3cd; border-color: orange; }
-    textarea { display: block; margin: 10px auto; width: 90%; height: 100px; }
   </style>
 </head>
 <body>
-  <h2 style="text-align: center;">Chamada por Reconhecimento Facial</h2>
-  <button onclick="startLiveMode()">📷 Chamada ao Vivo</button>
-  <button onclick="startImageMode()">🖼️ Chamada por Imagem</button>
+  <h2 style="text-align:center;">Chamada por Reconhecimento Facial</h2>
+  <button onclick="startLiveMode()">📷 Câmera Ao Vivo</button>
+  <button onclick="startImageMode()">🖼️ Enviar Imagem</button>
   <video id="video" width="720" height="560" autoplay muted style="display:none;"></video>
   <input type="file" id="imageUpload" accept="image/*" style="display:none;">
   <button id="capture" style="display:none;">Fazer Chamada</button>
   <canvas id="canvas" width="720" height="560"></canvas>
-  <div id="output">Carregando modelos...</div>
-  <div id="student-list" style="text-align: center;"></div>
-  <textarea id="copyArea" placeholder="Resultado da chamada aparecerá aqui para copiar e colar"></textarea>
-  <button id="export">Exportar Presença (.txt e .xlsx)</button>
+  <div id="output" style="text-align:center;">Carregando modelos...</div>
+  <div id="student-list" style="text-align:center;"></div>
+  <textarea id="copyArea" rows="10" style="width:90%;display:block;margin:10px auto;"></textarea>
+  <button id="export">Exportar</button>
 
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    const output = document.getElementById('output');
-    const captureButton = document.getElementById('capture');
-    const exportButton = document.getElementById('export');
-    const studentListDiv = document.getElementById('student-list');
     const imageUpload = document.getElementById('imageUpload');
+    const captureButton = document.getElementById('capture');
+    const output = document.getElementById('output');
+    const studentList = document.getElementById('student-list');
     const copyArea = document.getElementById('copyArea');
 
     const labels = [
-      'ALLANY URIELLY BERNARDO NEGREIROS',
-      'ANTONIO ARTUR MARTINS DAMASIO',
-      'BÁRBARA DO RAMO DA SILVA',
-      'CARLOS ALEXANDRE DA SILVA',
-      'DULCE EMANNUELE DA SILVA',
-      'ELOÁ CRISTINA SILVA DO NASCIMENTO',
-      'EMANUELLY DE OLIVEIRA DA SILVA',
-      'ESMERALDA ANGELA DA SILVA',
-      'ESTHEFANY DO NASCIMENTO SANTOS',
-      'FELIPE BARRETO DE MOURA',
-      'GABRIELE SIPRIANO DOS SANTOS',
-      'HUMBERTO LIMA BESSA',
-      'IAGO FERNANDES SILVA OLIVEIRA',
-      'JOSUE JEFFERSON DOS SANTOS NASCIEMENTO',
-      'JULIANA SANTOS DO NASCIMENTO',
-      'LAIS CLAUDIA DA CONCEIÇÃO',
-      'MARIA ADRIELLY KEMILLY DA SILVA',
-      'MARIA DA GUIA DA SILVA FELINTO',
-      'MATHEUS LIMA DE ARAÚJO',
-      'NARCISO PINTO DE FREITAS TERCEIRO',
-      'PEDRO HENRIQUE SILVA DE SOUZA',
-      'PETALA CRISTINA DA SILVA SANTOS',
-      'SABRINA SOUSA DO NASCIMENTO',
-      'TASSYELL DA SILVA SOARES',
-      'THAYANE RAKELY DOS SANTOS LUIZ',
-      'VICTORIAH GABRIELLY SILVA TAVARES'
+      "ALLANY URIELLY BERNARDO NEGREIROS",
+      "ANTONIO ARTUR MARTINS DAMASIO",
+      "BÁRBARA DO RAMO DA SILVA",
+      "CARLOS ALEXANDRE DA SILVA",
+      "DULCE EMANNUELE DA SILVA",
+      "ELOÁ CRISTINA SILVA DO NASCIMENTO",
+      "EMANUELLY DE OLIVEIRA DA SILVA",
+      "ESMERALDA ANGELA DA SILVA",
+      "ESTHEFANY DO NASCIMENTO SANTOS",
+      "FELIPE BARRETO DE MOURA",
+      "GABRIELE SIPRIANO DOS SANTOS",
+      "HUMBERTO LIMA BESSA",
+      "IAGO FERNANDES SILVA OLIVEIRA",
+      "JOSUE JEFFERSON DOS SANTOS NASCIEMENTO",
+      "JULIANA SANTOS DO NASCIMENTO",
+      "LAIS CLAUDIA DA CONCEIÇÃO",
+      "MARIA ADRIELLY KEMILLY DA SILVA",
+      "MARIA DA GUIA DA SILVA FELINTO",
+      "MATHEUS LIMA DE ARAÚJO",
+      "NARCISO PINTO DE FREITAS TERCEIRO",
+      "PEDRO HENRIQUE SILVA DE SOUZA",
+      "PETALA CRISTINA DA SILVA SANTOS",
+      "SABRINA SOUSA DO NASCIMENTO",
+      "TASSYELL DA SILVA SOARES",
+      "THAYANE RAKELY DOS SANTOS LUIZ",
+      "VICTORIAH GABRIELLY SILVA TAVARES"
     ];
 
     let labeledFaceDescriptors = null;
     let faceMatcher = null;
-    let presentStudents = new Set();
     let studentStatus = {};
     let currentImage = null;
 
-    function updateStudentList() {
-      studentListDiv.innerHTML = '';
-      labels.forEach(name => {
-        studentStatus[name] = 'ausente';
-        const span = document.createElement('span');
-        span.className = 'student absent';
-        span.id = `student-${name}`;
-        span.innerText = name;
-        span.onclick = () => toggleStatus(name);
-        studentListDiv.appendChild(span);
-      });
-    }
+    labels.forEach(name => {
+      studentStatus[name] = 'Faltou';
+      const span = document.createElement('span');
+      span.className = 'student absent';
+      span.id = `student-${name}`;
+      span.innerText = name;
+      span.onclick = () => toggleStatus(name);
+      studentList.appendChild(span);
+    });
 
     function toggleStatus(name) {
-      const span = document.getElementById(`student-${name}`);
-      const current = studentStatus[name];
-      if (current === 'presente') {
-        studentStatus[name] = 'nota';
-        span.className = 'student note';
-      } else if (current === 'nota') {
-        studentStatus[name] = 'ausente';
-        span.className = 'student absent';
+      const el = document.getElementById(`student-${name}`);
+      if (studentStatus[name] === 'Presente') {
+        studentStatus[name] = 'Justificado';
+        el.className = 'student note';
+      } else if (studentStatus[name] === 'Justificado') {
+        studentStatus[name] = 'Faltou';
+        el.className = 'student absent';
       } else {
-        studentStatus[name] = 'presente';
-        span.className = 'student present';
+        studentStatus[name] = 'Presente';
+        el.className = 'student present';
       }
-      renderCopyArea();
+      updateCopyArea();
+    }
+
+    function updateCopyArea() {
+      const today = new Date().toLocaleDateString();
+      let result = `Data: ${today}
+`;
+      labels.forEach(name => {
+        result += `${name} - ${studentStatus[name]}
+`;
+      });
+      copyArea.value = result;
     }
 
     function startLiveMode() {
       video.style.display = 'block';
       imageUpload.style.display = 'none';
       captureButton.style.display = 'block';
-      startVideo();
+      navigator.mediaDevices.getUserMedia({ video: {} })
+        .then(stream => { video.srcObject = stream; });
     }
 
     function startImageMode() {
@@ -121,106 +121,58 @@
     }
 
     async function loadModels() {
-      try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri("models");
-        await faceapi.nets.faceRecognitionNet.loadFromUri("models");
-        await faceapi.nets.faceLandmark68Net.loadFromUri("models");
-        output.innerText = 'Modelos carregados. Escolha uma opção para iniciar a chamada.';
-      } catch (err) {
-        output.innerText = 'Erro ao carregar os modelos. Verifique a pasta "models" e recarregue a página.';
-        console.error("Erro ao carregar modelos:", err);
-      }
+      await faceapi.nets.tinyFaceDetector.loadFromUri("models");
+      await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+      await faceapi.nets.faceRecognitionNet.loadFromUri("models");
+      output.innerText = "Modelos carregados.";
     }
 
-    async function startVideo() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-      video.srcObject = stream;
-    }
-
-    async function loadLabeledDescriptors() {
+    async function loadLabeledImages() {
       return Promise.all(
         labels.map(async label => {
           const descriptions = [];
-          for (let i = 1; i <= 2; i++) {
-            try {
-              const img = await faceapi.fetchImage(`labeled_images/${label}/${i}.jpg`);
-              const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-              if (detection) descriptions.push(detection.descriptor);
-            } catch (e) {
-              console.warn(`Erro ao carregar imagem de ${label}/${i}.jpg`);
-            }
+          for (let i = 1; i <= 1; i++) {
+            const img = await faceapi.fetchImage(`labeled_images/${label}/${i}.jpg`);
+            const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+            if (detection) descriptions.push(detection.descriptor);
           }
           return new faceapi.LabeledFaceDescriptors(label, descriptions);
         })
       );
     }
 
-    async function recognizeFromCanvas(source) {
+    async function recognize(source) {
       const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
-      const displaySize = { width: source.width, height: source.height };
-      faceapi.matchDimensions(canvas, displaySize);
-      const resized = faceapi.resizeResults(detections, displaySize);
+      const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
       const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
-
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(source, 0, 0);
 
-      const unknowns = [];
-
       results.forEach((result, i) => {
         const box = resized[i].detection.box;
         const name = result.label;
-
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = name !== 'unknown' ? 'green' : 'red';
+        ctx.strokeStyle = name === "unknown" ? "red" : "green";
+        ctx.lineWidth = 2;
         ctx.strokeRect(box.x, box.y, box.width, box.height);
+        ctx.fillStyle = "black";
+        ctx.fillText(name, box.x, box.y - 5);
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(box.x, box.y - 20, box.width, 20);
-        ctx.fillStyle = 'white';
-        ctx.font = '16px Arial';
-        ctx.fillText(name, box.x + 5, box.y - 5);
-
-        if (name !== 'unknown') {
-          presentStudents.add(name);
-          studentStatus[name] = 'presente';
-          const studentSpan = document.getElementById(`student-${name}`);
-          if (studentSpan) studentSpan.className = 'student present';
-        } else {
-          unknowns.push(`Rosto não reconhecido em (${Math.round(box.x)}, ${Math.round(box.y)})`);
+        if (name !== "unknown") {
+          studentStatus[name] = "Presente";
+          const el = document.getElementById(`student-${name}`);
+          if (el) el.className = "student present";
         }
       });
 
-      const totalDetectados = results.length;
-      const totalReconhecidos = totalDetectados - unknowns.length;
-
-      let alerta = `Total de rostos detectados: ${totalDetectados}
-` +
-                   `Reconhecidos: ${totalReconhecidos}
-` +
-                   `Não reconhecidos: ${unknowns.length}`;
-      if (unknowns.length > 0) {
-        alerta += `
-
-Detalhes dos não reconhecidos:
-` + unknowns.join('
-');
-      }
-
-      alert(alerta);
-      renderCopyArea();
-      output.innerHTML = '<strong>Chamada realizada!</strong>';
+      updateCopyArea();
     }
 
     captureButton.onclick = () => {
-      if (video.style.display === 'block') {
-        recognizeFromCanvas(video);
+      if (video.style.display !== "none") {
+        recognize(video);
       } else if (currentImage) {
-        recognizeFromCanvas(currentImage);
-      } else {
-        alert('Selecione uma imagem antes.');
+        recognize(currentImage);
       }
     };
 
@@ -228,53 +180,14 @@ Detalhes dos não reconhecidos:
       currentImage = await faceapi.bufferToImage(imageUpload.files[0]);
       currentImage.width = 720;
       currentImage.height = 560;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(currentImage, 0, 0);
     };
 
-    function renderCopyArea() {
-      const today = new Date().toLocaleDateString();
-      const text = [`Data: ${today}
-`];
-      labels.forEach(name => {
-        let status = studentStatus[name];
-        if (status === 'presente') status = 'Presente';
-        else if (status === 'nota') status = 'Justificado';
-        else status = 'Faltou';
-        text.push(`${name} - ${status}`);
-      });
-      copyArea.value = text.join("\n");
-    }
-
-    exportButton.onclick = () => {
-      const today = new Date().toLocaleDateString();
-      const rows = [["Nome", "Status"]];
-      labels.forEach(name => {
-        let status = studentStatus[name];
-        if (status === 'presente') status = 'Presente';
-        else if (status === 'nota') status = 'Justificado';
-        else status = 'Faltou';
-        rows.push([name, status]);
-      });
-
-      const text = `Data: ${today}\n\n` + rows.map(r => r.join(" - ")).join("\n");
-      const blob = new Blob([text], { type: 'text/plain' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'presenca.txt';
-      a.click();
-
-      const worksheet = XLSX.utils.aoa_to_sheet([["Data", today], [], ...rows]);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
-      XLSX.writeFile(workbook, `presenca_${today.replace(/\//g, '-')}.xlsx`);
-    };
-
     window.onload = async () => {
-      updateStudentList();
       await loadModels();
-      labeledFaceDescriptors = await loadLabeledDescriptors();
+      labeledFaceDescriptors = await loadLabeledImages();
       faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
     };
   </script>
