@@ -133,6 +133,7 @@
         studentStatus[name] = 'presente';
         span.className = 'student present';
       }
+      renderCopyArea();
     }
 
     function startLiveMode() {
@@ -185,21 +186,52 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(source, 0, 0);
 
-      const today = new Date().toLocaleDateString();
+      const unknowns = [];
 
       results.forEach((result, i) => {
         const box = resized[i].detection.box;
         const name = result.label;
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = name !== 'unknown' ? 'green' : 'red';
+        ctx.ellipse(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+          box.width / 2,
+          box.height / 2,
+          0,
+          0,
+          2 * Math.PI
+        );
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(box.x, box.y - 20, box.width, 20);
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.fillText(name, box.x + 5, box.y - 5);
+
         if (name !== 'unknown') {
           presentStudents.add(name);
           studentStatus[name] = 'presente';
           const studentSpan = document.getElementById(`student-${name}`);
           if (studentSpan) studentSpan.className = 'student present';
+        } else {
+          unknowns.push(`Rosto não reconhecido em (${Math.round(box.x)}, ${Math.round(box.y)})`);
         }
-        const drawBox = new faceapi.draw.DrawBox(box, { label: name });
-        drawBox.draw(canvas);
       });
 
+      const totalDetectados = results.length;
+      const totalReconhecidos = totalDetectados - unknowns.length;
+
+      let alerta = `Total de rostos detectados: ${totalDetectados}\n` +
+                   `Reconhecidos: ${totalReconhecidos}\n` +
+                   `Não reconhecidos: ${unknowns.length}`;
+      if (unknowns.length > 0) {
+        alerta += `\n\nDetalhes dos não reconhecidos:\n` + unknowns.join('\n');
+      }
+
+      alert(alerta);
       renderCopyArea();
       output.innerHTML = '<strong>Chamada realizada!</strong>';
     }
@@ -218,7 +250,6 @@
     }
 
     captureButton.onclick = () => recognizeFromCanvas(video);
-
     imageUpload.onchange = async () => {
       const image = await faceapi.bufferToImage(imageUpload.files[0]);
       image.width = 720;
@@ -237,7 +268,6 @@
         rows.push([name, status]);
       });
 
-      // Exportar .txt
       const text = `Data: ${today}\n\n` + rows.map(r => r.join(" - ")).join("\n");
       const blob = new Blob([text], { type: 'text/plain' });
       const a = document.createElement('a');
@@ -245,7 +275,6 @@
       a.download = 'presenca.txt';
       a.click();
 
-      // Exportar .xlsx
       const worksheet = XLSX.utils.aoa_to_sheet([["Data", today], [], ...rows]);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
