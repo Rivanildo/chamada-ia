@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Chamada Automática com Reconhecimento Facial</title>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -74,38 +74,15 @@
     const copyArea = document.getElementById('copyArea');
 
     const labels = [
-      'ALLANY URIELLY BERNARDO NEGREIROS',
-      'ANTONIO ARTUR MARTINS DAMASIO',
-      'BÁRBARA DO RAMO DA SILVA',
-      'CARLOS ALEXANDRE DA SILVA',
-      'DULCE EMANNUELE DA SILVA',
-      'ELOÁ CRISTINA SILVA DO NASCIMENTO',
-      'EMANUELLY DE OLIVEIRA DA SILVA',
-      'ESMERALDA ANGELA DA SILVA',
-      'ESTHEFANY DO NASCIMENTO SANTOS',
-      'FELIPE BARRETO DE MOURA',
-      'GABRIELE SIPRIANO DOS SANTOS',
-      'HUMBERTO LIMA BESSA',
-      'IAGO FERNANDES SILVA OLIVEIRA',
-      'JOSUE JEFFERSON DOS SANTOS NASCIEMENTO',
-      'JULIANA SANTOS DO NASCIMENTO',
-      'LAIS CLAUDIA DA CONCEIÇÃO',
-      'MARIA ADRIELLY KEMILLY DA SILVA',
-      'MARIA DA GUIA DA SILVA FELINTO',
-      'MATHEUS LIMA DE ARAÚJO',
-      'NARCISO PINTO DE FREITAS TERCEIRO',
-      'PEDRO HENRIQUE SILVA DE SOUZA',
-      'PETALA CRISTINA DA SILVA SANTOS',
-      'SABRINA SOUSA DO NASCIMENTO',
-      'TASSYELL DA SILVA SOARES',
-      'THAYANE RAKELY DOS SANTOS LUIZ',
-      'VICTORIAH GABRIELLY SILVA TAVARES'
+      "ALUNO TESTE 1",
+      "ALUNO TESTE 2"
     ];
 
     let labeledFaceDescriptors = null;
     let faceMatcher = null;
     let presentStudents = new Set();
     let studentStatus = {};
+    let currentImage = null;
 
     function updateStudentList() {
       studentListDiv.innerHTML = '';
@@ -145,14 +122,14 @@
 
     function startImageMode() {
       video.style.display = 'none';
-      captureButton.style.display = 'none';
       imageUpload.style.display = 'block';
+      captureButton.style.display = 'block';
     }
 
     async function loadModels() {
-      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
-      await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+      await faceapi.nets.tinyFaceDetector.loadFromUri("models");
+      await faceapi.nets.faceRecognitionNet.loadFromUri("models");
+      await faceapi.nets.faceLandmark68Net.loadFromUri("models");
       output.innerText = 'Modelos carregados. Escolha uma opção para iniciar a chamada.';
     }
 
@@ -166,7 +143,7 @@
         labels.map(async label => {
           const descriptions = [];
           for (let i = 1; i <= 2; i++) {
-            const img = await faceapi.fetchImage(`/labeled_images/${label}/${i}.jpg`);
+            const img = await faceapi.fetchImage(`labeled_images/${label}/${i}.jpg`);
             const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
             if (detection) descriptions.push(detection.descriptor);
           }
@@ -194,15 +171,7 @@
         ctx.beginPath();
         ctx.lineWidth = 3;
         ctx.strokeStyle = name !== 'unknown' ? 'green' : 'red';
-        ctx.ellipse(
-          box.x + box.width / 2,
-          box.y + box.height / 2,
-          box.width / 2,
-          box.height / 2,
-          0,
-          0,
-          2 * Math.PI
-        );
+        ctx.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2, 0, 0, 2 * Math.PI);
         ctx.stroke();
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -249,12 +218,23 @@
       copyArea.value = text.join("\n");
     }
 
-    captureButton.onclick = () => recognizeFromCanvas(video);
+    captureButton.onclick = async () => {
+      if (video.style.display === 'block') {
+        recognizeFromCanvas(video);
+      } else if (currentImage) {
+        recognizeFromCanvas(currentImage);
+      } else {
+        alert('Selecione uma imagem antes.');
+      }
+    };
+
     imageUpload.onchange = async () => {
-      const image = await faceapi.bufferToImage(imageUpload.files[0]);
-      image.width = 720;
-      image.height = 560;
-      await recognizeFromCanvas(image);
+      currentImage = await faceapi.bufferToImage(imageUpload.files[0]);
+      currentImage.width = 720;
+      currentImage.height = 560;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(currentImage, 0, 0);
     };
 
     exportButton.onclick = () => {
