@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <title>Chamada Automática com Reconhecimento Facial</title>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    video, canvas {
+    video, canvas, #imageUpload {
       display: block;
       margin: 10px auto;
     }
@@ -24,23 +25,43 @@
       display: inline-block;
       border-radius: 5px;
       border: 1px solid #ccc;
+      cursor: pointer;
     }
     .present {
       background-color: #c2f0c2;
       border-color: green;
       font-weight: bold;
     }
+    .absent {
+      background-color: #f5c2c2;
+      border-color: red;
+    }
+    .note {
+      background-color: #fff3cd;
+      border-color: orange;
+    }
+    textarea {
+      display: block;
+      margin: 10px auto;
+      width: 90%;
+      height: 100px;
+    }
   </style>
 </head>
 <body>
   <h2 style="text-align: center;">Chamada por Reconhecimento Facial</h2>
-  <video id="video" width="720" height="560" autoplay muted></video>
-  <button id="capture">Fazer Chamada</button>
+  <button onclick="startLiveMode()">📷 Chamada ao Vivo</button>
+  <button onclick="startImageMode()">🖼️ Chamada por Imagem</button>
+
+  <video id="video" width="720" height="560" autoplay muted style="display:none;"></video>
+  <input type="file" id="imageUpload" accept="image/*" style="display:none;">
+  <button id="capture" style="display:none;">Fazer Chamada</button>
   <canvas id="canvas" width="720" height="560"></canvas>
   <div id="output">Carregando modelos...</div>
   <h3 style="text-align: center;">Lista de Estudantes</h3>
   <div id="student-list" style="text-align: center;"></div>
-  <button id="export">Exportar Presença</button>
+  <textarea id="copyArea" placeholder="Resultado da chamada aparecerá aqui para copiar e colar"></textarea>
+  <button id="export">Exportar Presença (.txt e .xlsx)</button>
 
   <script>
     const video = document.getElementById('video');
@@ -49,28 +70,89 @@
     const captureButton = document.getElementById('capture');
     const exportButton = document.getElementById('export');
     const studentListDiv = document.getElementById('student-list');
+    const imageUpload = document.getElementById('imageUpload');
+    const copyArea = document.getElementById('copyArea');
 
-    const labels = ['Ana', 'Bruno', 'Carlos', 'Diana', 'Eduardo'];
+    const labels = [
+      'ALLANY URIELLY BERNARDO NEGREIROS',
+      'ANTONIO ARTUR MARTINS DAMASIO',
+      'BÁRBARA DO RAMO DA SILVA',
+      'CARLOS ALEXANDRE DA SILVA',
+      'DULCE EMANNUELE DA SILVA',
+      'ELOÁ CRISTINA SILVA DO NASCIMENTO',
+      'EMANUELLY DE OLIVEIRA DA SILVA',
+      'ESMERALDA ANGELA DA SILVA',
+      'ESTHEFANY DO NASCIMENTO SANTOS',
+      'FELIPE BARRETO DE MOURA',
+      'GABRIELE SIPRIANO DOS SANTOS',
+      'HUMBERTO LIMA BESSA',
+      'IAGO FERNANDES SILVA OLIVEIRA',
+      'JOSUE JEFFERSON DOS SANTOS NASCIEMENTO',
+      'JULIANA SANTOS DO NASCIMENTO',
+      'LAIS CLAUDIA DA CONCEIÇÃO',
+      'MARIA ADRIELLY KEMILLY DA SILVA',
+      'MARIA DA GUIA DA SILVA FELINTO',
+      'MATHEUS LIMA DE ARAÚJO',
+      'NARCISO PINTO DE FREITAS TERCEIRO',
+      'PEDRO HENRIQUE SILVA DE SOUZA',
+      'PETALA CRISTINA DA SILVA SANTOS',
+      'SABRINA SOUSA DO NASCIMENTO',
+      'TASSYELL DA SILVA SOARES',
+      'THAYANE RAKELY DOS SANTOS LUIZ',
+      'VICTORIAH GABRIELLY SILVA TAVARES'
+    ];
+
     let labeledFaceDescriptors = null;
     let faceMatcher = null;
     let presentStudents = new Set();
+    let studentStatus = {};
 
     function updateStudentList() {
       studentListDiv.innerHTML = '';
       labels.forEach(name => {
+        studentStatus[name] = 'ausente';
         const span = document.createElement('span');
-        span.className = 'student';
+        span.className = 'student absent';
         span.id = `student-${name}`;
         span.innerText = name;
+        span.onclick = () => toggleStatus(name);
         studentListDiv.appendChild(span);
       });
+    }
+
+    function toggleStatus(name) {
+      const span = document.getElementById(`student-${name}`);
+      const current = studentStatus[name];
+      if (current === 'presente') {
+        studentStatus[name] = 'nota';
+        span.className = 'student note';
+      } else if (current === 'nota') {
+        studentStatus[name] = 'ausente';
+        span.className = 'student absent';
+      } else {
+        studentStatus[name] = 'presente';
+        span.className = 'student present';
+      }
+    }
+
+    function startLiveMode() {
+      video.style.display = 'block';
+      imageUpload.style.display = 'none';
+      captureButton.style.display = 'block';
+      startVideo();
+    }
+
+    function startImageMode() {
+      video.style.display = 'none';
+      captureButton.style.display = 'none';
+      imageUpload.style.display = 'block';
     }
 
     async function loadModels() {
       await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
       await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
       await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-      output.innerText = 'Modelos carregados. Pronto para chamada.';
+      output.innerText = 'Modelos carregados. Escolha uma opção para iniciar a chamada.';
     }
 
     async function startVideo() {
@@ -92,45 +174,87 @@
       );
     }
 
-    captureButton.onclick = async () => {
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
-      const displaySize = { width: video.width, height: video.height };
+    async function recognizeFromCanvas(source) {
+      const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+      const displaySize = { width: source.width, height: source.height };
       faceapi.matchDimensions(canvas, displaySize);
       const resized = faceapi.resizeResults(detections, displaySize);
       const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
 
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0);
+      ctx.drawImage(source, 0, 0);
+
+      const today = new Date().toLocaleDateString();
 
       results.forEach((result, i) => {
         const box = resized[i].detection.box;
         const name = result.label;
         if (name !== 'unknown') {
           presentStudents.add(name);
+          studentStatus[name] = 'presente';
           const studentSpan = document.getElementById(`student-${name}`);
-          if (studentSpan) studentSpan.classList.add('present');
+          if (studentSpan) studentSpan.className = 'student present';
         }
         const drawBox = new faceapi.draw.DrawBox(box, { label: name });
         drawBox.draw(canvas);
       });
 
+      renderCopyArea();
       output.innerHTML = '<strong>Chamada realizada!</strong>';
+    }
+
+    function renderCopyArea() {
+      const today = new Date().toLocaleDateString();
+      const text = [`Data: ${today}\n`];
+      labels.forEach(name => {
+        let status = studentStatus[name];
+        if (status === 'presente') status = 'Presente';
+        else if (status === 'nota') status = 'Justificado';
+        else status = 'Faltou';
+        text.push(`${name} - ${status}`);
+      });
+      copyArea.value = text.join("\n");
+    }
+
+    captureButton.onclick = () => recognizeFromCanvas(video);
+
+    imageUpload.onchange = async () => {
+      const image = await faceapi.bufferToImage(imageUpload.files[0]);
+      image.width = 720;
+      image.height = 560;
+      await recognizeFromCanvas(image);
     };
 
     exportButton.onclick = () => {
-      const list = Array.from(presentStudents);
-      const blob = new Blob([list.join('\n')], { type: 'text/plain' });
+      const today = new Date().toLocaleDateString();
+      const rows = [["Nome", "Status"]];
+      labels.forEach(name => {
+        let status = studentStatus[name];
+        if (status === 'presente') status = 'Presente';
+        else if (status === 'nota') status = 'Justificado';
+        else status = 'Faltou';
+        rows.push([name, status]);
+      });
+
+      // Exportar .txt
+      const text = `Data: ${today}\n\n` + rows.map(r => r.join(" - ")).join("\n");
+      const blob = new Blob([text], { type: 'text/plain' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'presenca.txt';
       a.click();
+
+      // Exportar .xlsx
+      const worksheet = XLSX.utils.aoa_to_sheet([["Data", today], [], ...rows]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
+      XLSX.writeFile(workbook, `presenca_${today.replace(/\//g, '-')}.xlsx`);
     };
 
     window.onload = async () => {
       updateStudentList();
       await loadModels();
-      await startVideo();
       labeledFaceDescriptors = await loadLabeledDescriptors();
       faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
     };
