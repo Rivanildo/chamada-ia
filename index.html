@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Chamada Automática com Reconhecimento Facial</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <style>
+    video, canvas {
+      display: block;
+      margin: 10px auto;
+    }
+    #output {
+      text-align: center;
+      font-family: sans-serif;
+    }
+    button {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+    }
+    .student {
+      padding: 5px;
+      margin: 2px;
+      display: inline-block;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .present {
+      background-color: #c2f0c2;
+      border-color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">Chamada por Reconhecimento Facial</h2>
+  <video id="video" width="720" height="560" autoplay muted></video>
+  <button id="capture">Fazer Chamada</button>
+  <canvas id="canvas" width="720" height="560"></canvas>
+  <div id="output">Carregando modelos...</div>
+  <h3 style="text-align: center;">Lista de Estudantes</h3>
+  <div id="student-list" style="text-align: center;"></div>
+  <button id="export">Exportar Presença</button>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const output = document.getElementById('output');
+    const captureButton = document.getElementById('capture');
+    const exportButton = document.getElementById('export');
+    const studentListDiv = document.getElementById('student-list');
+
+    const labels = ['Ana', 'Bruno', 'Carlos', 'Diana', 'Eduardo'];
+    let labeledFaceDescriptors = null;
+    let faceMatcher = null;
+    let presentStudents = new Set();
+
+    function updateStudentList() {
+      studentListDiv.innerHTML = '';
+      labels.forEach(name => {
+        const span = document.createElement('span');
+        span.className = 'student';
+        span.id = `student-${name}`;
+        span.innerText = name;
+        studentListDiv.appendChild(span);
+      });
+    }
+
+    async function loadModels() {
+      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+      output.innerText = 'Modelos carregados. Pronto para chamada.';
+    }
+
+    async function startVideo() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      video.srcObject = stream;
+    }
+
+    async function loadLabeledDescriptors() {
+      return Promise.all(
+        labels.map(async label => {
+          const descriptions = [];
+          for (let i = 1; i <= 2; i++) {
+            const img = await faceapi.fetchImage(`/labeled_images/${label}/${i}.jpg`);
+            const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+            if (detection) descriptions.push(detection.descriptor);
+          }
+          return new faceapi.LabeledFaceDescriptors(label, descriptions);
+        })
+      );
+    }
+
+    captureButton.onclick = async () => {
+      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+      const displaySize = { width: video.width, height: video.height };
+      faceapi.matchDimensions(canvas, displaySize);
+      const resized = faceapi.resizeResults(detections, displaySize);
+      const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0);
+
+      results.forEach((result, i) => {
+        const box = resized[i].detection.box;
+        const name = result.label;
+        if (name !== 'unknown') {
+          presentStudents.add(name);
+          const studentSpan = document.getElementById(`student-${name}`);
+          if (studentSpan) studentSpan.classList.add('present');
+        }
+        const drawBox = new faceapi.draw.DrawBox(box, { label: name });
+        drawBox.draw(canvas);
+      });
+
+      output.innerHTML = '<strong>Chamada realizada!</strong>';
+    };
+
+    exportButton.onclick = () => {
+      const list = Array.from(presentStudents);
+      const blob = new Blob([list.join('\n')], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'presenca.txt';
+      a.click();
+    };
+
+    window.onload = async () => {
+      updateStudentList();
+      await loadModels();
+      await startVideo();
+      labeledFaceDescriptors = await loadLabeledDescriptors();
+      faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+    };
+  </script>
+</body>
+</html>
