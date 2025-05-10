@@ -1,0 +1,1 @@
+// face-api.js local (coloque o conteúdo real aqui)
