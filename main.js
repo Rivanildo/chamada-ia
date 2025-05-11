@@ -1,13 +1,11 @@
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const imageUpload = document.getElementById('imageUpload');
-const captureButton = document.getElementById('capture');
 const output = document.getElementById('output');
 const studentList = document.getElementById('student-list');
 const copyArea = document.getElementById('copyArea');
 
 const labels = [
-  
   "HUMBERTO LIMA BESSA"
   
 ];
@@ -57,7 +55,6 @@ function updateCopyArea() {
 function startLiveMode() {
   video.style.display = 'block';
   imageUpload.style.display = 'none';
-  captureButton.style.display = 'block';
   navigator.mediaDevices.getUserMedia({ video: {} })
     .then(stream => { video.srcObject = stream; });
 
@@ -68,14 +65,13 @@ function startLiveMode() {
       } else {
         clearInterval(interval);
       }
-    }, 2000);
+    }, 1000); // detecta a cada 1 segundo
   });
 }
 
 function startImageMode() {
   video.style.display = 'none';
   imageUpload.style.display = 'block';
-  captureButton.style.display = 'block';
 }
 
 async function loadModels() {
@@ -83,7 +79,6 @@ async function loadModels() {
     await faceapi.nets.tinyFaceDetector.loadFromUri("models");
     await faceapi.nets.faceLandmark68Net.loadFromUri("models");
     await faceapi.nets.faceRecognitionNet.loadFromUri("models");
-    await faceapi.nets.ssdMobilenetv1.loadFromUri("models");
     output.innerText = "Modelos carregados.";
     console.log("✅ Modelos carregados.");
   } catch (err) {
@@ -112,22 +107,24 @@ async function loadLabeledImages() {
     })
   );
 }
+
 async function recognize(source) {
-  if (!faceMatcher) {
-    console.error("❌ faceMatcher ainda não está pronto.");
-    return;
-  }
+  if (!faceMatcher) return;
 
   try {
-const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptors();
-    const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
+    const detections = await faceapi.detectAllFaces(
+      source,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
+    ).withFaceLandmarks().withFaceDescriptors();
 
-    console.log("🔍 Detecções encontradas:", detections.length);
+    const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
 
     const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
     const ctx = canvas.getContext('2d');
+    canvas.width = source.width;
+    canvas.height = source.height;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(source, 0, 0);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     results.forEach((result, i) => {
       const box = resized[i].detection.box;
@@ -142,7 +139,7 @@ const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDete
       ctx.font = "16px Arial";
       ctx.fillText(displayName, box.x, box.y - 5);
 
-      if (!isUnknown) {
+      if (!isUnknown && studentStatus[name] !== "Presente") {
         studentStatus[name] = "Presente";
         const el = document.getElementById(`student-${name}`);
         if (el) el.className = "student present";
@@ -155,42 +152,28 @@ const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDete
   }
 }
 
-captureButton.onclick = () => {
-  console.log("🖱️ Botão 'Fazer Chamada' pressionado.");
-  if (!modelsReady) {
-    alert("Modelos ainda não carregados!");
-    return;
-  }
-  if (video.style.display !== "none") {
-    recognize(video);
-  } else if (currentImage) {
-    recognize(currentImage);
-  } else {
-    console.warn("⚠️ Nenhuma imagem selecionada.");
-  }
-};
-
 imageUpload.onchange = async () => {
   currentImage = await faceapi.bufferToImage(imageUpload.files[0]);
+  const ctx = canvas.getContext("2d");
   canvas.width = currentImage.width;
   canvas.height = currentImage.height;
-  const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(currentImage, 0, 0);
-  console.log("🖼️ Imagem carregada.");
+  recognize(currentImage);
 };
 
 window.onload = async () => {
   await loadModels();
-  labeledFaceDescriptors = await loadLabeledImages();
+  const resultados = await loadLabeledImages();
+  const descritoresValidos = resultados.filter(lfd => lfd.descriptors.length > 0);
+  if (descritoresValidos.length === 0) {
+    output.innerText = "Nenhum rosto carregado com sucesso.";
+    console.warn("⚠️ Nenhum descritor válido foi carregado.");
+    return;
+  }
 
-  const descritoresValidos = labeledFaceDescriptors.filter(lfd => lfd.descriptors.length > 0);
   faceMatcher = new faceapi.FaceMatcher(descritoresValidos, 0.6);
   modelsReady = true;
-
-  const carregados = descritoresValidos.length;
-  const falhas = labels.length - carregados;
-
-  output.innerText = `🧠 Modelos carregados. Rostos prontos: ${carregados}, falhas: ${falhas}`;
-  console.log(`🧠 faceMatcher inicializado com ${carregados} rostos. ${falhas} falharam.`);
+  output.innerText = `Modelos carregados. Rostos prontos: ${descritoresValidos.length}`;
+  console.log(`🧠 faceMatcher pronto com ${descritoresValidos.length} estudantes.`);
 };
