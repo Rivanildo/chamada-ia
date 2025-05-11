@@ -6,34 +6,7 @@ const output = document.getElementById('output');
 const studentList = document.getElementById('student-list');
 const copyArea = document.getElementById('copyArea');
 
-const labels = [
-  "ALLANY URIELLY BERNARDO NEGREIROS",
-  "ANTONIO ARTUR MARTINS DAMASIO",
-  "BÁRBARA DO RAMO DA SILVA",
-  "CARLOS ALEXANDRE DA SILVA",
-  "DULCE EMANNUELE DA SILVA",
-  "ELOÁ CRISTINA SILVA DO NASCIMENTO",
-  "EMANUELLY DE OLIVEIRA DA SILVA",
-  "ESMERALDA ANGELA DA SILVA",
-  "ESTHEFANY DO NASCIMENTO SANTOS",
-  "FELIPE BARRETO DE MOURA",
-  "GABRIELE SIPRIANO DOS SANTOS",
-  "HUMBERTO LIMA BESSA",
-  "IAGO FERNANDES SILVA OLIVEIRA",
-  "JOSUE JEFFERSON DOS SANTOS NASCIEMENTO",
-  "JULIANA SANTOS DO NASCIMENTO",
-  "LAIS CLAUDIA DA CONCEIÇÃO",
-  "MARIA ADRIELLY KEMILLY DA SILVA",
-  "MARIA DA GUIA DA SILVA FELINTO",
-  "MATHEUS LIMA DE ARAÚJO",
-  "NARCISO PINTO DE FREITAS TERCEIRO",
-  "PEDRO HENRIQUE SILVA DE SOUZA",
-  "PETALA CRISTINA DA SILVA SANTOS",
-  "SABRINA SOUSA DO NASCIMENTO",
-  "TASSYELL DA SILVA SOARES",
-  "THAYANE RAKELY DOS SANTOS LUIZ",
-  "VICTORIAH GABRIELLY SILVA TAVARES"
-];
+const labels = ["HUMBERTO LIMA BESSA"];
 
 let labeledFaceDescriptors = null;
 let faceMatcher = null;
@@ -91,20 +64,33 @@ function startImageMode() {
 }
 
 async function loadModels() {
-  await faceapi.nets.tinyFaceDetector.loadFromUri("models");
-  await faceapi.nets.faceLandmark68Net.loadFromUri("models");
-  await faceapi.nets.faceRecognitionNet.loadFromUri("models");
-  output.innerText = "Modelos carregados.";
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri("models");
+    await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+    await faceapi.nets.faceRecognitionNet.loadFromUri("models");
+    output.innerText = "Modelos carregados.";
+    console.log("✅ Modelos carregados.");
+  } catch (err) {
+    output.innerText = "Erro ao carregar modelos.";
+    console.error("❌ Erro ao carregar modelos:", err);
+  }
 }
 
 async function loadLabeledImages() {
   return Promise.all(
     labels.map(async label => {
       const descriptions = [];
-      for (let i = 1; i <= 1; i++) {
-        const img = await faceapi.fetchImage(`labeled_images/${label}/${i}.jpg`);
+      try {
+        const img = await faceapi.fetchImage(`labeled_images/${label}/1.jpg`);
         const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-        if (detection) descriptions.push(detection.descriptor);
+        if (!detection) {
+          console.warn("⚠️ Nenhum rosto detectado na imagem de:", label);
+        } else {
+          console.log("✅ Rosto detectado em:", label);
+          descriptions.push(detection.descriptor);
+        }
+      } catch (e) {
+        console.error("❌ Erro ao carregar imagem de:", label, e);
       }
       return new faceapi.LabeledFaceDescriptors(label.trim().toUpperCase(), descriptions);
     })
@@ -112,37 +98,56 @@ async function loadLabeledImages() {
 }
 
 async function recognize(source) {
-  const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
-  const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
-  const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(source, 0, 0);
+  try {
+    const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+    const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
 
-  results.forEach((result, i) => {
-    const box = resized[i].detection.box;
-    const name = result.label;
-    ctx.strokeStyle = name === "unknown" ? "red" : "green";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(box.x, box.y, box.width, box.height);
-    ctx.fillStyle = "black";
-    ctx.fillText(name, box.x, box.y - 5);
+    console.log("🔍 Detecções encontradas:", detections.length);
 
-    if (name !== "unknown") {
-      studentStatus[name] = "Presente";
-      const el = document.getElementById(`student-${name}`);
-      if (el) el.className = "student present";
+    if (!faceMatcher) {
+      console.error("❌ faceMatcher está indefinido!");
+      return;
     }
-  });
 
-  updateCopyArea();
+    const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(source, 0, 0);
+
+    results.forEach((result, i) => {
+      const box = resized[i].detection.box;
+      const name = result.label;
+      ctx.strokeStyle = name === "unknown" ? "red" : "green";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.fillStyle = "black";
+      ctx.fillText(name, box.x, box.y - 5);
+
+      console.log(`🎯 Resultado: ${name}`);
+
+      if (name !== "unknown") {
+        studentStatus[name] = "Presente";
+        const el = document.getElementById(`student-${name}`);
+        if (el) el.className = "student present";
+      }
+    });
+
+    updateCopyArea();
+  } catch (e) {
+    console.error("❌ Erro durante o reconhecimento:", e);
+  }
 }
 
 captureButton.onclick = () => {
+  console.log("🖱️ Botão 'Fazer Chamada' pressionado.");
   if (video.style.display !== "none") {
+    console.log("🎥 Usando vídeo.");
     recognize(video);
   } else if (currentImage) {
+    console.log("🖼️ Usando imagem carregada.");
     recognize(currentImage);
+  } else {
+    console.warn("⚠️ Nenhuma imagem selecionada.");
   }
 };
 
@@ -153,10 +158,12 @@ imageUpload.onchange = async () => {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(currentImage, 0, 0);
+  console.log("🖼️ Imagem carregada.");
 };
 
 window.onload = async () => {
   await loadModels();
   labeledFaceDescriptors = await loadLabeledImages();
   faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+  console.log("🧠 faceMatcher inicializado.");
 };
