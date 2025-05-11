@@ -119,7 +119,7 @@ async function recognize(source) {
   }
 
   try {
-    const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptors();
     const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
 
     console.log("🔍 Detecções encontradas:", detections.length);
@@ -172,8 +172,8 @@ captureButton.onclick = () => {
 
 imageUpload.onchange = async () => {
   currentImage = await faceapi.bufferToImage(imageUpload.files[0]);
-  currentImage.width = 720;
-  currentImage.height = 560;
+  canvas.width = currentImage.width;
+  canvas.height = currentImage.height;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(currentImage, 0, 0);
