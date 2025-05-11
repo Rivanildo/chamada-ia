@@ -39,6 +39,7 @@ let labeledFaceDescriptors = null;
 let faceMatcher = null;
 let studentStatus = {};
 let currentImage = null;
+let modelsReady = false;
 
 labels.forEach(name => {
   const normalized = name.trim().toUpperCase();
@@ -85,7 +86,7 @@ function startLiveMode() {
 
   video.addEventListener('playing', () => {
     const interval = setInterval(() => {
-      if (video.style.display !== 'none') {
+      if (video.style.display !== 'none' && modelsReady) {
         recognize(video);
       } else {
         clearInterval(interval);
@@ -135,16 +136,16 @@ async function loadLabeledImages() {
 }
 
 async function recognize(source) {
+  if (!faceMatcher) {
+    console.error("❌ faceMatcher ainda não está pronto.");
+    return;
+  }
+
   try {
     const detections = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
     const resized = faceapi.resizeResults(detections, { width: source.width, height: source.height });
 
     console.log("🔍 Detecções encontradas:", detections.length);
-
-    if (!faceMatcher) {
-      console.error("❌ faceMatcher está indefinido!");
-      return;
-    }
 
     const results = resized.map(d => faceMatcher.findBestMatch(d.descriptor));
     const ctx = canvas.getContext('2d');
@@ -154,15 +155,17 @@ async function recognize(source) {
     results.forEach((result, i) => {
       const box = resized[i].detection.box;
       const name = result.label;
-      ctx.strokeStyle = name === "unknown" ? "red" : "green";
+      const isUnknown = name === "unknown";
+      const displayName = isUnknown ? "Desconhecido" : name;
+
+      ctx.strokeStyle = isUnknown ? "red" : "green";
       ctx.lineWidth = 2;
       ctx.strokeRect(box.x, box.y, box.width, box.height);
       ctx.fillStyle = "black";
-      ctx.fillText(name, box.x, box.y - 5);
+      ctx.font = "16px Arial";
+      ctx.fillText(displayName, box.x, box.y - 5);
 
-      console.log(`🎯 Resultado: ${name}`);
-
-      if (name !== "unknown") {
+      if (!isUnknown) {
         studentStatus[name] = "Presente";
         const el = document.getElementById(`student-${name}`);
         if (el) el.className = "student present";
@@ -177,11 +180,13 @@ async function recognize(source) {
 
 captureButton.onclick = () => {
   console.log("🖱️ Botão 'Fazer Chamada' pressionado.");
+  if (!modelsReady) {
+    alert("Modelos ainda não carregados!");
+    return;
+  }
   if (video.style.display !== "none") {
-    console.log("🎥 Usando vídeo.");
     recognize(video);
   } else if (currentImage) {
-    console.log("🖼️ Usando imagem carregada.");
     recognize(currentImage);
   } else {
     console.warn("⚠️ Nenhuma imagem selecionada.");
@@ -202,5 +207,6 @@ window.onload = async () => {
   await loadModels();
   labeledFaceDescriptors = await loadLabeledImages();
   faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+  modelsReady = true;
   console.log("🧠 faceMatcher inicializado.");
 };
