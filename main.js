@@ -82,6 +82,16 @@ function startLiveMode() {
   captureButton.style.display = 'block';
   navigator.mediaDevices.getUserMedia({ video: {} })
     .then(stream => { video.srcObject = stream; });
+
+  video.addEventListener('playing', () => {
+    const interval = setInterval(() => {
+      if (video.style.display !== 'none') {
+        recognize(video);
+      } else {
+        clearInterval(interval);
+      }
+    }, 2000);
+  });
 }
 
 function startImageMode() {
