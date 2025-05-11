@@ -134,7 +134,6 @@ async function loadLabeledImages() {
     })
   );
 }
-
 async function recognize(source) {
   if (!faceMatcher) {
     console.error("❌ faceMatcher ainda não está pronto.");
@@ -206,7 +205,14 @@ imageUpload.onchange = async () => {
 window.onload = async () => {
   await loadModels();
   labeledFaceDescriptors = await loadLabeledImages();
-  faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
+
+  const descritoresValidos = labeledFaceDescriptors.filter(lfd => lfd.descriptors.length > 0);
+  faceMatcher = new faceapi.FaceMatcher(descritoresValidos, 0.6);
   modelsReady = true;
-  console.log("🧠 faceMatcher inicializado.");
+
+  const carregados = descritoresValidos.length;
+  const falhas = labels.length - carregados;
+
+  output.innerText = `🧠 Modelos carregados. Rostos prontos: ${carregados}, falhas: ${falhas}`;
+  console.log(`🧠 faceMatcher inicializado com ${carregados} rostos. ${falhas} falharam.`);
 };
