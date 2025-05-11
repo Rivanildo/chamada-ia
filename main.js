@@ -41,12 +41,13 @@ let studentStatus = {};
 let currentImage = null;
 
 labels.forEach(name => {
-  studentStatus[name] = 'Faltou';
+  const normalized = name.trim().toUpperCase();
+  studentStatus[normalized] = 'Faltou';
   const span = document.createElement('span');
   span.className = 'student absent';
-  span.id = `student-${name}`;
+  span.id = `student-${normalized}`;
   span.innerText = name;
-  span.onclick = () => toggleStatus(name);
+  span.onclick = () => toggleStatus(normalized);
   studentList.appendChild(span);
 });
 
@@ -69,7 +70,8 @@ function updateCopyArea() {
   const today = new Date().toLocaleDateString();
   let result = `Data: ${today}\n`;
   labels.forEach(name => {
-    result += `${name} - ${studentStatus[name]}\n`;
+    const normalized = name.trim().toUpperCase();
+    result += `${name} - ${studentStatus[normalized]}\n`;
   });
   copyArea.value = result;
 }
@@ -104,7 +106,7 @@ async function loadLabeledImages() {
         const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
         if (detection) descriptions.push(detection.descriptor);
       }
-      return new faceapi.LabeledFaceDescriptors(label, descriptions);
+      return new faceapi.LabeledFaceDescriptors(label.trim().toUpperCase(), descriptions);
     })
   );
 }
